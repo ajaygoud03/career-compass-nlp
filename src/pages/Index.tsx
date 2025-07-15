@@ -2,11 +2,14 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { FileUpload } from '@/components/FileUpload';
+import { uploadResume } from '@/lib/supabase/uploadResume';
 import { AnalysisResults } from '@/components/AnalysisResults';
 import { analyzeResumeMatch, extractTextFromFile, AnalysisResult } from '@/utils/aiProcessor';
 import { toast } from 'sonner';
 import { Brain, FileText, Target, Zap } from 'lucide-react';
+import { FileUpload } from "@/components/FileUpload";
+
+
 
 const Index = () => {
   const [resumeFile, setResumeFile] = useState<File | null>(null);
@@ -18,29 +21,31 @@ const Index = () => {
   const [analysisResults, setAnalysisResults] = useState<AnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
+  const uploadFileToSupabase = async (
+    file: File,
+    folder: 'resumes' | 'descriptions',
+    setProgress: (val: number) => void
+  ): Promise<void> => {
+    try {
+      setProgress(10);
+      await uploadResume(file, folder);
+      setProgress(100);
+    } catch (err) {
+      toast.error('File upload to Supabase failed');
+      throw err;
+    }
+  };
+
   const handleResumeUpload = async (file: File) => {
     setResumeFile(file);
     setIsProcessingResume(true);
     setResumeProgress(0);
 
     try {
-      // Simulate processing progress
-      const progressInterval = setInterval(() => {
-        setResumeProgress(prev => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return prev;
-          }
-          return prev + 10;
-        });
-      }, 200);
-
+      await uploadFileToSupabase(file, 'resumes', setResumeProgress);
       await extractTextFromFile(file);
-      clearInterval(progressInterval);
-      setResumeProgress(100);
       toast.success('Resume uploaded and processed successfully!');
-    } catch (error) {
-      toast.error('Failed to process resume file');
+    } catch {
       setResumeFile(null);
     } finally {
       setIsProcessingResume(false);
@@ -53,22 +58,10 @@ const Index = () => {
     setJobDescProgress(0);
 
     try {
-      const progressInterval = setInterval(() => {
-        setJobDescProgress(prev => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return prev;
-          }
-          return prev + 10;
-        });
-      }, 200);
-
+      await uploadFileToSupabase(file, 'descriptions', setJobDescProgress);
       await extractTextFromFile(file);
-      clearInterval(progressInterval);
-      setJobDescProgress(100);
       toast.success('Job description uploaded and processed successfully!');
-    } catch (error) {
-      toast.error('Failed to process job description file');
+    } catch {
       setJobDescFile(null);
     } finally {
       setIsProcessingJobDesc(false);
@@ -159,7 +152,6 @@ const Index = () => {
 
         {!analysisResults ? (
           <div className="max-w-4xl mx-auto">
-            {/* File Upload Section */}
             <Card className="mb-6">
               <CardHeader>
                 <CardTitle>Upload Documents</CardTitle>
@@ -221,7 +213,7 @@ const Index = () => {
                 Start New Analysis
               </Button>
             </div>
-            
+
             <AnalysisResults
               overallScore={analysisResults.overallScore}
               sectionScores={analysisResults.sectionScores}
